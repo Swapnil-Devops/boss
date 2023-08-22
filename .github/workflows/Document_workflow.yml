@@ -1,0 +1,51 @@
+
+name: Discussion on Comment
+
+on:
+  discussion_comment:
+    types:
+      - created
+      
+jobs:
+  update-discussion:
+    if: >-
+      github.event.discussion.category.name == 'General'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Get discussion information
+        id: discussion-info
+        run: |
+          echo "comment_body=$(echo '${{ toJson(github.event) }}' | jq '.comment.body')" >> $GITHUB_OUTPUT
+          echo "disc_number=$(echo '${{ toJson(github.event) }}' | jq '.discussion.number')" >> $GITHUB_OUTPUT
+          echo "disc_ID=$(echo '${{ toJson(github.event) }}' | jq -r '.discussion.node_id')" >> $GITHUB_OUTPUT
+          echo "disc_body=$(echo '${{ toJson(github.event) }}' | jq '.discussion.body')" >> $GITHUB_OUTPUT
+      - name: verify node_id
+        run: echo "${{ steps.discussion-info.outputs.disc_ID}}"    
+     
+      - name: Create a new prompt
+        id: prompt_creation
+        uses: Swapnil-Devops/gptprompt@main
+        with:
+          blurb_body: ${{ steps.discussion-info.outputs.disc_body}}
+          comment_body: ${{ steps.discussion-info.outputs.comment_body}}
+
+      - name: verify prompt
+        run: echo "${{ steps.prompt_creation.outputs.body}}"
+
+      - name: chatgpt
+        id: chatgpt
+        uses: Swapnil-Devops/chatdocument@main
+        with:
+          api_key: ${{ secrets.API_KEY }}
+          prompt: ${{ steps.prompt_creation.outputs.body}}
+
+      - name: Update Blurb Discussion
+        id: update_Blurb
+        uses: Swapnil-Devops/updateblurb@main
+        with:
+          PAT:  ${{ secrets.GITHUB_TOKEN }}
+          updatedbody: ${{ steps.chatgpt.outputs.body }}
+          discussionId: ${{ steps.discussion-info.outputs.disc_ID}} 
